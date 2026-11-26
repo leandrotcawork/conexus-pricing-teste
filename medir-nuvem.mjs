@@ -57,6 +57,19 @@ export function precoDe(corpo) {
     return { preco: validos.length === 1 ? validos[0] : null, precos_distintos: validos.length };
 }
 
+// Repositório público: log e artefato não levam segredo nem HTML. O GitHub não mascara o artefato, e a mensagem de
+// erro pode trazer a senha dentro da URL do Browser API ou o começo do corpo da página (erro 5xx do Crawlee).
+const SEGREDOS = ['BRIGHTDATA_API_KEY', 'BRIGHTDATA_ZONE', 'BRIGHTDATA_BROWSER_AUTH', 'ZYTE_API_KEY', 'ZENROWS_API_KEY']
+    .flatMap((nome) => [process.env[nome] ?? '', ...(process.env[nome] ?? '').split(':')])
+    .filter((valor) => valor.length >= 6);
+const textoPublico = (valor) => SEGREDOS.reduce((texto, segredo) => texto.replaceAll(segredo, '***'), String(valor)
+    .split('\n')[0]
+    .replace(/(Internal Server Error):.*/, '$1')
+    .replace(/<.*/, '')
+    .replace(/\/\/[^/\s]*@/g, '//***@')
+    .replace(/brd-customer-[\w-]+/g, '***')
+    .replace(/apikey=[^&\s]+/g, 'apikey=***'));
+
 const resultados = [];
 function registra(variante, alvo, status, corpo, extra = {}) {
     const { preco, precos_distintos } = status === 200 ? precoDe(corpo) : { preco: null, precos_distintos: 0 };
@@ -67,12 +80,14 @@ function registra(variante, alvo, status, corpo, extra = {}) {
         desafio, titulo: tituloDe(corpo), bytes: corpo.length,
         em: new Date().toISOString(), ...extra,
     };
+    if (linha.erro_fornecedor) linha.erro_fornecedor = textoPublico(linha.erro_fornecedor);
     resultados.push(linha);
-    console.log(variante, alvo.id, status, preco !== null ? `preço ${preco}` : 'sem preço', desafio ?? '', extra.erro_fornecedor ?? '');
+    console.log(variante, alvo.id, status, preco !== null ? `preço ${preco}` : 'sem preço', desafio ?? '', linha.erro_fornecedor ?? '');
 }
 const registraErro = (variante, alvo, erro) => {
-    resultados.push({ variante, alvo: alvo.id, url: alvo.url, erro: String(erro).slice(0, 300), em: new Date().toISOString() });
-    console.log(variante, alvo.id, 'ERRO', String(erro).slice(0, 160));
+    const texto = textoPublico(erro);
+    resultados.push({ variante, alvo: alvo.id, url: alvo.url, erro: texto.slice(0, 300), em: new Date().toISOString() });
+    console.log(variante, alvo.id, 'ERRO', texto.slice(0, 160));
 };
 const pulada = (variante, motivo) => {
     resultados.push({ variante, pulada: motivo });
@@ -84,7 +99,7 @@ const pulada = (variante, motivo) => {
 async function varianteImpit(alvos) {
     const { HttpCrawler, Configuration, log } = await import('crawlee');
     const { ImpitHttpClient, Browser } = await import('@crawlee/impit-client');
-    log.setLevel(log.LEVELS.WARNING);
+    log.setLevel(log.LEVELS.OFF); // o log do Crawlee imprime o erro cru, com trecho da página
     for (const [i, alvo] of alvos.entries()) {
         if (i > 0) await sleep(PAUSA_MS());
         const crawler = new HttpCrawler({
@@ -100,7 +115,7 @@ async function varianteImpit(alvos) {
 
 async function varianteNavegador(nome, alvos) {
     const { PlaywrightCrawler, Configuration, log } = await import('crawlee');
-    log.setLevel(log.LEVELS.WARNING);
+    log.setLevel(log.LEVELS.OFF);
     let launchContext;
     if (nome === 'patchright') {
         // Estudo 3, seção 8.2: Chrome instalado + Patchright, sem impressão injetada, pt-BR, com janela (xvfb na nuvem).
