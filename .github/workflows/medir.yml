@@ -50,6 +50,9 @@ jobs:
           ZENROWS_API_KEY: ${{ secrets.ZENROWS_API_KEY }}
         # xvfb-run dá uma tela virtual: Patchright e Camoufox rodam com janela, não headless.
         run: xvfb-run -a node medir-nuvem.mjs saida.json
+      - name: Resumo do run
+        if: always()
+        run: node resumo.mjs saida.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
