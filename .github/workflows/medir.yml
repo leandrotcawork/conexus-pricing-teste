@@ -1,0 +1,58 @@
+name: medir-coletor-hospedado
+
+# Roda só quando alguém clica em "Run workflow" (Actions > medir-coletor-hospedado), nunca sozinho.
+on:
+  workflow_dispatch:
+    inputs:
+      leroy_url:
+        description: 'Página de PRODUTO do Leroy (https://www.leroymerlin.com.br/...)'
+        required: true
+      magalu_url:
+        description: 'Página de PRODUTO do Magalu (https://www.magazineluiza.com.br/.../p/...)'
+        required: true
+      dexco_url:
+        description: 'Página de PRODUTO da Dexco (https://www.deca.com.br/...)'
+        required: true
+      variantes:
+        description: 'Variantes, separadas por vírgula'
+        required: false
+        default: 'impit,patchright,camoufox,brightdata-unlocker,brightdata-browser,zyte,zenrows'
+
+permissions:
+  contents: read
+
+jobs:
+  medir:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      TZ: America/Sao_Paulo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Dependências (versões fixas no package.json)
+        run: npm install --no-audit --no-fund
+      - name: Navegador do Camoufox
+        run: npx camoufox-js fetch
+      - name: Medir (1 requisição por alvo e variante, pausa de 20 a 40 s)
+        env:
+          ORIGEM_ROTULO: github-actions-ubuntu-24.04
+          LEROY_URL: ${{ inputs.leroy_url }}
+          MAGALU_URL: ${{ inputs.magalu_url }}
+          DEXCO_URL: ${{ inputs.dexco_url }}
+          VARIANTES: ${{ inputs.variantes }}
+          BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+          BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+          BRIGHTDATA_BROWSER_AUTH: ${{ secrets.BRIGHTDATA_BROWSER_AUTH }}
+          ZYTE_API_KEY: ${{ secrets.ZYTE_API_KEY }}
+          ZENROWS_API_KEY: ${{ secrets.ZENROWS_API_KEY }}
+        # xvfb-run dá uma tela virtual: Patchright e Camoufox rodam com janela, não headless.
+        run: xvfb-run -a node medir-nuvem.mjs saida.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: saida-medicao
+          path: saida.json
+          if-no-files-found: warn
