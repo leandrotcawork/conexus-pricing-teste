@@ -1,0 +1,16 @@
+{
+  "name": "teste-coletor-hospedado",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "medir": "node medir-nuvem.mjs saida.json"
+  },
+  "dependencies": {
+    "@crawlee/impit-client": "3.18.2",
+    "camoufox-js": "0.13.0",
+    "crawlee": "3.18.2",
+    "patchright": "1.64.3",
+    "playwright": "1.60.0"
+  }
+}
